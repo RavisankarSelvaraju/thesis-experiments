@@ -1,4 +1,4 @@
-dataset_id: data_01_flatterrain_MFH
+dataset_id: DATA_01
 
 dataset_log_directory: "dataset_01/"
 
@@ -11,7 +11,7 @@ environment:
 motion:
   runtime_s: 200
   control: operator               # options: operator, autonomous
-  velocity: medium                # options: low(0.05m/s), medium(0.2m/s), high(0.5m/s), random
+  velocity: medium                # options: low, medium, high, random
   trajectory: random              # options: random, straight_line, custom
   trajectory_description: ""      # fill only if trajectory = custom or random
 
@@ -35,10 +35,12 @@ data_quality:
 
 events:
 - type: slip
-  start_s: 00                     # integer (time in seconds since the start of this experiment)
-  end_s: 00                       # integer (time in seconds since the start of this experiment)         
+  start_s: 23                     # integer (time in seconds since the start of this experiment)
+  end_s: 28                       # integer (time in seconds since the start of this experiment)         
   description: ""
 - type: obstacle_climbing
-  start_s: 00
-  end_s: 00
+  start_s: 78
+  end_s: 89
   description: ""
+description: This is a template dataset, testing the make.py file
+created_at: '2026-05-09T17:52:36.601972'

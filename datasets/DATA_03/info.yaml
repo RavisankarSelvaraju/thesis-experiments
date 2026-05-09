@@ -1,6 +1,6 @@
-dataset_id: DATA_01
-description: ""
-created_at: 
+dataset_id: DATA_03
+description: "i dont kno"
+created_at: '2026-05-09T17:59:21.336188'
 
 dataset_log_directory: "dataset_01/"
 
@@ -36,12 +36,11 @@ data_quality:
   data_quality_issues: ""         # describe issues if any
 
 events:
-  - type: slip                   
-    start_s: 23                   # integer (time in seconds since the start of this experiment)
-    end_s: 28                     # integer (time in seconds since the start of this experiment)         
-    description: ""
-    
-  - type: obstacle_climbing
-    start_s: 78
-    end_s: 89 
-    description: ""
+- type: slip
+  start_s: 23                     # integer (time in seconds since the start of this experiment)
+  end_s: 28                       # integer (time in seconds since the start of this experiment)         
+  description: ""
+- type: obstacle_climbing
+  start_s: 78
+  end_s: 89
+  description: ""
