@@ -1,6 +1,6 @@
 dataset_id: DATA_01
 description: ""
-created_at: 
+file_created_at: 
 
 dataset_log_directory: "dataset_01/"
 
@@ -11,7 +11,7 @@ environment:
   slope_deg: 0                    # integer (e.g., 0, 5, 10)
 
 motion:
-  runtime_s: 200
+  runtime_s: -99
   control: operator               # options: operator, autonomous
   velocity: medium                # options: low, medium, high, random
   trajectory: random              # options: random, straight_line, custom
