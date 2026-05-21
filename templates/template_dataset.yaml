@@ -1,15 +1,14 @@
 dataset_id: DATA_01
-description: ""
-file_created_at: 
-
 dataset_log_directory: "dataset_01/"
+
+dataset_collection_date: ""
+description: ""
 
 environment:
   location: craterHall           
-  surface: sand                  
   terrain: loose                 
   slope_deg: 0                   
-
+  
 motion:
   runtime_s: -99
   control: operator               
@@ -26,7 +25,8 @@ sensors:
     available: true
   video:
     available: true
-    copied_to_log_directory: true
+    id: VIDEO_99
+    reference_number: -99
 
 data_quality:
   imu_sensor_data_available: true
@@ -44,3 +44,5 @@ events:
     start_s: 78
     end_s: 89 
     description: ""
+
+file_created_at: '---'

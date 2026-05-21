@@ -140,7 +140,10 @@ def update_dataset(row_dict):
     # --------------------------------------------------------
 
     data["dataset_id"] = dataset_id
-
+    
+    data["dataset_collection_date"] = \
+        row_dict.get("Date", "")
+    
     data["description"] = \
         row_dict.get("Experiment Description", "")
 
@@ -156,18 +159,10 @@ def update_dataset(row_dict):
     data["environment"]["location"] = \
         row_dict.get("Location", "")
 
-    data["environment"]["surface"] = \
-        row_dict.get("Terrain", "")
-
     data["environment"]["terrain"] = \
         row_dict.get("Terrain", "")
 
     slope = row_dict.get("Slope", "0")
-
-    try:
-        slope = int(float(slope))
-    except:
-        slope = 0
 
     data["environment"]["slope_deg"] = slope
 
@@ -188,13 +183,19 @@ def update_dataset(row_dict):
     # VIDEO
     # --------------------------------------------------------
 
-    video = str(row_dict.get("Video", "")).strip()
+    video = str(row_dict.get("Video?"))
 
     has_video = False
 
     if video.lower() not in ["", "no", "false", "0"]:
         has_video = True
 
+    if has_video:
+        data["sensors"]["video"]["id"] = dataset_id.replace("DATA", "VIDEO")
+        data["sensors"]["video"]["reference_number"] = video
+    else:
+        data["sensors"]["video"]["id"] = "Not Available"
+        data["sensors"]["video"]["reference_number"] = "Not Available"
     data["sensors"]["video"]["available"] = has_video
 
     # --------------------------------------------------------
@@ -202,8 +203,6 @@ def update_dataset(row_dict):
     # --------------------------------------------------------
 
     save_yaml(info_yaml, data)
-
-    print(f"  -> updated {info_yaml}")
 
 
 # ============================================================
