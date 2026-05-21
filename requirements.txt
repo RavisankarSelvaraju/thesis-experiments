@@ -1,0 +1,3 @@
+defusedxml==0.7.1
+odfpy==1.4.1
+ruamel.yaml==0.19.1
