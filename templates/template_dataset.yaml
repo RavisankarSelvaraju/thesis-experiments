@@ -35,14 +35,5 @@ data_quality:
   data_quality_issues: ""         
 
 events:
-  - type: slip                   
-    start_s: 23                   # integer (time in seconds since the start of this experiment)
-    end_s: 28                     # integer (time in seconds since the start of this experiment)         
-    description: ""
-    
-  - type: obstacle_climbing
-    start_s: 78
-    end_s: 89 
-    description: ""
 
 file_created_at: '---'

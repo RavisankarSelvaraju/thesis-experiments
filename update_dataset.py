@@ -1,70 +1,74 @@
 #!/usr/bin/env python3
+"""
+update_dataset.py
+
+Generate dataset README YAML entries from CSV rows and optionally create a single
+overview README.md file containing all generated dataset sections.
+
+Usage:
+  python3 update_dataset.py experiment_details.csv [search_root] [--dataset-info [output_dir]] [--test [LOG_DIR_NAME | DATASET_ID]]
+
+Arguments:
+  experiment_details.csv   CSV file containing dataset metadata.
+  search_root             Optional root folder to search for existing log directories.
+                          Defaults to the current working directory.
+
+Options:
+  --dataset-info [output_dir]
+      When present, the script collects the YAML content for each processed row and
+      writes a single README.md file in the specified output folder.
+      If no directory is provided, it defaults to ./dataset_info.
+
+  --test
+      Process only the first completed row from the CSV.
+
+  --test=VALUE
+      Process only the row whose Dataset id or Log dir name matches VALUE.
+
+CSV runtime support:
+  If the CSV contains columns named Runtime, runtime, Runtime [s], or runtime_s,
+  their value will be written into the generated YAML as motion.runtime_s.
+
+Behavior:
+  - If an existing log directory is found under search_root, the script updates its README.yaml.
+  - If --dataset-info is used, the script also generates a single README.md file with
+    one YAML section per processed log dir.
+  - The file_created_at field is omitted from the README.md overview sections.
+
+  Example:
+  python3 update_dataset.py experiment_details.csv /202605_contact_velocity_odometry/ --dataset-info /202605_contact_velocity_odometry/
+"""
 
 from pathlib import Path
 from datetime import datetime
 from ruamel.yaml import YAML
-from odf.opendocument import load
-from odf.table import Table, TableRow, TableCell
-from odf.text import P
+import csv
 import shutil
 import sys
+
 
 yaml = YAML()
 yaml.preserve_quotes = True
 
 ROOT = Path.cwd()
-
-DATASET_ROOT = ROOT / "datasets"
-TEMPLATE_DATASET = ROOT / "templates" / "template_dataset.yaml"
+TEMPLATE_DATASET = ROOT / "template_dataset.yaml"
 
 
 # ============================================================
-# ODS PARSER
+# CSV PARSER
 # ============================================================
 
-def read_ods(file_path):
+def load_csv(file_path):
+    with open(file_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = []
 
-    doc = load(str(file_path))
+        for row in reader:
+            stripped_row = {k: v.strip() if isinstance(v, str) else v for k, v in row.items()}
+            if any((value or "").strip() != "" for value in stripped_row.values()):
+                rows.append(stripped_row)
 
-    rows_data = []
-
-    sheets = doc.spreadsheet.getElementsByType(Table)
-
-    for sheet in sheets:
-
-        for row in sheet.getElementsByType(TableRow):
-
-            row_data = []
-
-            cells = row.getElementsByType(TableCell)
-
-            for cell in cells:
-
-                text_content = ""
-
-                paragraphs = cell.getElementsByType(P)
-
-                if paragraphs:
-
-                    text_content = "\n".join(
-                        "".join(
-                            node.data
-                            for node in p.childNodes
-                            if hasattr(node, "data")
-                        )
-                        for p in paragraphs
-                    )
-
-                repeat = cell.getAttribute("numbercolumnsrepeated")
-                repeat = int(repeat) if repeat else 1
-
-                for _ in range(repeat):
-                    row_data.append(text_content.strip())
-
-            if any(v != "" for v in row_data):
-                rows_data.append(row_data)
-
-    return rows_data
+    return rows
 
 
 # ============================================================
@@ -83,23 +87,41 @@ def save_yaml(filepath, data):
         yaml.dump(data, f)
 
 
+def save_yaml_text(data):
+
+    from io import StringIO
+
+    stream = StringIO()
+    yaml.dump(data, stream)
+    return stream.getvalue()
+
+
+def yaml_markdown_section(header, data):
+    section_data = dict(data)
+    section_data.pop("file_created_at", None)
+    yaml_content = save_yaml_text(section_data).strip()
+    return f"## {header}\n\n{yaml_content}\n"
+
+
 # ============================================================
 # DATASET CREATION
 # ============================================================
 
-def create_dataset(dataset_id):
+def prepare_readme_path(log_dir_name, search_root):
 
-    dataset_dir = DATASET_ROOT / dataset_id
+    matches = [p for p in search_root.rglob(log_dir_name) if p.is_dir()]
 
-    dataset_dir.mkdir(parents=True, exist_ok=True)
+    if not matches:
+        return None
 
+    if len(matches) > 1:
+        print(f"  -> multiple directories found for '{log_dir_name}', using first match: {matches[0]}")
+
+    dataset_dir = matches[0]
     info_yaml = dataset_dir / "README.yaml"
 
     if not info_yaml.exists():
-
         shutil.copy(TEMPLATE_DATASET, info_yaml)
-
-        print(f"  -> created template {info_yaml}")
 
     return info_yaml
 
@@ -108,35 +130,43 @@ def create_dataset(dataset_id):
 # UPDATE DATASET
 # ============================================================
 
-def update_dataset(row_dict):
+def update_dataset(row_dict, dataset_root, dataset_info_dir=None):
 
     status = row_dict.get("Status", "").strip().lower()
 
     # only process completed datasets
     if status != "completed":
-        return
+        return False, False, None
 
     dataset_id = row_dict.get("Dataset id", "").strip()
+    log_dir_name = row_dict.get("Log dir name", "").strip()
 
-    if dataset_id == "":
-        return
+    if dataset_id == "" or log_dir_name == "":
+        return False, False, None
 
-    print(f"\nProcessing {dataset_id}")
-
-    # --------------------------------------------------------
-    # Create dataset directory if missing
-    # --------------------------------------------------------
-
-    info_yaml = create_dataset(dataset_id)
+    print(f"\nProcessing {dataset_id} ({log_dir_name})")
 
     # --------------------------------------------------------
-    # Load YAML
+    # Prepare README path in existing dataset log directory
     # --------------------------------------------------------
 
-    data = load_yaml(info_yaml)
+    info_yaml = prepare_readme_path(log_dir_name, dataset_root)
+    missing_dir = info_yaml is None
+    if missing_dir:
+        print(f"  -> target dataset directory not found: {log_dir_name}")
+
+    # --------------------------------------------------------
+    # Load or create YAML data
+    # --------------------------------------------------------
+
+    if info_yaml is not None:
+        data = load_yaml(info_yaml)
+    else:
+        data = load_yaml(TEMPLATE_DATASET)
 
     # --------------------------------------------------------
     # BASIC
+    # --------------------------------------------------------
     # --------------------------------------------------------
 
     data["dataset_id"] = dataset_id
@@ -179,11 +209,19 @@ def update_dataset(row_dict):
     data["motion"]["trajectory_description"] = \
         row_dict.get("Experiment Description", "")
 
+    runtime_value = row_dict.get("Runtime", "") or row_dict.get("runtime", "") or row_dict.get("Runtime [s]", "") or row_dict.get("runtime_s", "")
+    runtime_value = runtime_value.strip() if isinstance(runtime_value, str) else runtime_value
+    if runtime_value != "":
+        try:
+            data["motion"]["runtime_s"] = float(runtime_value)
+        except (ValueError, TypeError):
+            data["motion"]["runtime_s"] = runtime_value
+
     # --------------------------------------------------------
     # VIDEO
     # --------------------------------------------------------
 
-    video = str(row_dict.get("Video?"))
+    video = str(row_dict.get("Video", row_dict.get("Video?", "")))
 
     has_video = False
 
@@ -202,7 +240,15 @@ def update_dataset(row_dict):
     # SAVE
     # --------------------------------------------------------
 
-    save_yaml(info_yaml, data)
+    if info_yaml is not None:
+        save_yaml(info_yaml, data)
+
+    section = None
+    if dataset_info_dir is not None:
+        section = yaml_markdown_section(log_dir_name, data)
+
+    processed = not missing_dir or dataset_info_dir is not None
+    return processed, missing_dir, section
 
 
 # ============================================================
@@ -211,36 +257,99 @@ def update_dataset(row_dict):
 
 def main():
 
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
 
         print("Usage:")
-        print("  python3 sync_datasets.py experiments.ods")
+        print("  python3 update_dataset.py experiments.csv [search_root] [--dataset-info [output_dir]] [--test [LOG_DIR_NAME | DATASET_ID]]")
+        print("  (generated files will be YAML, e.g. dataset_info/DATA_01_02.yaml)")
+        print("  --test: process only one row. Optionally supply a log dir name or dataset id.")
         sys.exit(1)
 
-    ods_file = Path(sys.argv[1])
+    csv_file = Path(sys.argv[1])
+    search_root = ROOT
+    dataset_info_dir = None
+    test_filter = None
+    test_first = False
 
-    if not ods_file.exists():
+    args = sys.argv[2:]
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--dataset-info":
+            if i + 1 < len(args) and not args[i + 1].startswith("--"):
+                dataset_info_dir = Path(args[i + 1])
+                i += 1
+            else:
+                dataset_info_dir = ROOT / "dataset_info"
+        elif arg.startswith("--dataset-info="):
+            dataset_info_dir = Path(arg.split("=", 1)[1])
+        elif arg == "--test":
+            if i + 1 < len(args) and not args[i + 1].startswith("--"):
+                test_filter = args[i + 1]
+                i += 1
+            else:
+                test_first = True
+        elif arg.startswith("--test="):
+            test_filter = arg.split("=", 1)[1]
+        else:
+            search_root = Path(arg)
+        i += 1
 
-        print(f"File not found: {ods_file}")
+    if not csv_file.exists():
+
+        print(f"File not found: {csv_file}")
         sys.exit(1)
 
-    rows = read_ods(ods_file)
+    rows = load_csv(csv_file)
 
-    if len(rows) < 2:
+    if len(rows) == 0:
 
-        print("No spreadsheet data found.")
+        print("No CSV data found.")
         sys.exit(1)
 
-    header = rows[0]
+    total_dirs = 0
+    missing_dirs = 0
+    created_readmes = 0
+    dataset_info_files = 0
+    summary_sections = []
 
-    for row in rows[1:]:
+    if test_filter is not None or test_first:
+        print("Test mode enabled: processing only one row.")
 
-        row_dict = dict(zip(header, row))
+    for row_dict in rows:
+        if test_filter is not None:
+            dataset_id = row_dict.get("Dataset id", "").strip()
+            log_dir_name = row_dict.get("Log dir name", "").strip()
+            if dataset_id != test_filter and log_dir_name != test_filter:
+                continue
 
-        update_dataset(row_dict)
+        processed, missing, section = update_dataset(row_dict, search_root, dataset_info_dir)
+        if processed or missing:
+            total_dirs += 1
+        if processed:
+            created_readmes += 1
+        if missing:
+            missing_dirs += 1
+        if section is not None:
+            summary_sections.append(section)
+            dataset_info_files += 1
+
+        if test_filter is not None or test_first:
+            break
+
+    if dataset_info_dir is not None:
+        dataset_info_dir.mkdir(parents=True, exist_ok=True)
+        output_file = dataset_info_dir / "README.md"
+        output_file.write_text("\n".join(summary_sections).rstrip() + "\n", encoding="utf-8")
 
     print("\nDone.")
+    print(f"Processed {total_dirs} completed log dirs.")
+    print(f"Missing existing directories: {missing_dirs} of {total_dirs}")
+    print(f"README files created/updated: {created_readmes}")
+    if dataset_info_dir is not None:
+        print(f"Generated dataset summary markdown in: {output_file}")
+        print(f"Dataset sections added: {dataset_info_files}")
 
-
+    
 if __name__ == "__main__":
     main()
